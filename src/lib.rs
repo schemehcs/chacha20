@@ -2,7 +2,7 @@ pub fn chacha20_encrypt(key: &[u8; 32], ctr: u32, nonce: &[u8; 12], plaintext: &
     let mut state = state_gen(key, ctr, nonce);
     let mut ciphertext = Vec::new();
     let mut chunks_64 = plaintext.chunks_exact(64);
-    while let Some(chk) = chunks_64.next() {
+    for chk in chunks_64.by_ref() {
         let key_stream = chacha20_block(&state);
         for i in 0..64 {
             ciphertext.push(key_stream[i] ^ chk[i]);
@@ -17,6 +17,15 @@ pub fn chacha20_encrypt(key: &[u8; 32], ctr: u32, nonce: &[u8; 12], plaintext: &
         }
     }
     ciphertext
+}
+
+pub fn chacha20_block(initial_state: &[u32; 16]) -> [u8; 64] {
+    let mut state = *initial_state;
+    for _ in 0..10 {
+        inner_block(&mut state);
+    }
+    state_add(&mut state, initial_state);
+    serialize(&state)
 }
 
 fn quarter_round_pure(mut a: u32, mut b: u32, mut c: u32, mut d: u32) -> (u32, u32, u32, u32) {
@@ -59,33 +68,19 @@ fn state_gen(key: &[u8; 32], ctr: u32, nonce: &[u8; 12]) -> [u32; 16] {
     state[2] = 0x79622d32;
     state[3] = 0x6b206574;
 
-    // 3 - 11 key
-    let mut ki: usize = 4;
-    for chk in key.chunks_exact(4) {
+    for (ki, chk) in (4..).zip(key.chunks_exact(4)) {
         state[ki] = u32::from_le_bytes(chk.try_into().unwrap());
-        ki += 1;
     }
 
     // 12 ctr
     state[12] = ctr;
 
     // 13 - 15 nounce
-    let mut ni: usize = 13;
-    for chk in nonce.chunks_exact(4) {
+    for (ni, chk) in (13..).zip(nonce.chunks_exact(4)) {
         state[ni] = u32::from_le_bytes(chk.try_into().unwrap());
-        ni += 1;
     }
 
     state
-}
-
-fn chacha20_block(initial_state: &[u32; 16]) -> [u8; 64] {
-    let mut state = initial_state.clone();
-    for _ in 0..10 {
-        inner_block(&mut state);
-    }
-    state_add(&mut state, initial_state);
-    serialize(&state)
 }
 
 fn state_inc_ctr(state: &mut [u32; 16]) {
