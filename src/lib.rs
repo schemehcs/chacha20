@@ -28,6 +28,29 @@ pub fn chacha20_block(initial_state: &[u32; 16]) -> [u8; 64] {
     serialize(&state)
 }
 
+pub fn state_gen(key: &[u8; 32], ctr: u32, nonce: &[u8; 12]) -> [u32; 16] {
+    let mut state: [u32; 16] = [0; 16];
+    // 0 - 3 constant
+    state[0] = 0x61707865;
+    state[1] = 0x3320646e;
+    state[2] = 0x79622d32;
+    state[3] = 0x6b206574;
+
+    for (ki, chk) in (4..).zip(key.chunks_exact(4)) {
+        state[ki] = u32::from_le_bytes(chk.try_into().unwrap());
+    }
+
+    // 12 ctr
+    state[12] = ctr;
+
+    // 13 - 15 nounce
+    for (ni, chk) in (13..).zip(nonce.chunks_exact(4)) {
+        state[ni] = u32::from_le_bytes(chk.try_into().unwrap());
+    }
+
+    state
+}
+
 fn quarter_round_pure(mut a: u32, mut b: u32, mut c: u32, mut d: u32) -> (u32, u32, u32, u32) {
     a = a.wrapping_add(b);
     d ^= a;
@@ -60,28 +83,6 @@ fn inner_block(state: &mut [u32; 16]) {
     quarter_round(state, 3, 4, 9, 14);
 }
 
-fn state_gen(key: &[u8; 32], ctr: u32, nonce: &[u8; 12]) -> [u32; 16] {
-    let mut state: [u32; 16] = [0; 16];
-    // 0 - 3 constant
-    state[0] = 0x61707865;
-    state[1] = 0x3320646e;
-    state[2] = 0x79622d32;
-    state[3] = 0x6b206574;
-
-    for (ki, chk) in (4..).zip(key.chunks_exact(4)) {
-        state[ki] = u32::from_le_bytes(chk.try_into().unwrap());
-    }
-
-    // 12 ctr
-    state[12] = ctr;
-
-    // 13 - 15 nounce
-    for (ni, chk) in (13..).zip(nonce.chunks_exact(4)) {
-        state[ni] = u32::from_le_bytes(chk.try_into().unwrap());
-    }
-
-    state
-}
 
 fn state_inc_ctr(state: &mut [u32; 16]) {
     // add block counter
